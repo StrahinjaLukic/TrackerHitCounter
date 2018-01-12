@@ -5,9 +5,9 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.6 FATAL_ERROR)
 ########################################################
 
 
-# AreaReader creates DD4hep detector elements from xml descriptions and 
-# reads properties from their extensions
-PROJECT( AreaReader )
+# TrackerHitCounter Marlin processor counts simTrackerHits for each tracker layer
+# and reports number of hits per unit area
+PROJECT( TrackerHitCounter )
 
 
 # project version

@@ -20,7 +20,9 @@ public:
 
     virtual ~LayerHitCounter() {}
 
-    double getHitsPerPerCm2() const { return double(_nHits)/_area; }
+    int getNHits() const { return _nHits; }
+    double getHitsPerCm2() const { return double(_nHits)/_area; }
+    void addHit() { _nHits++; }
     void addHits(int newHits) { _nHits += newHits; }
 
 private:
@@ -29,7 +31,9 @@ private:
 };
 
 typedef std::map<int, LayerHitCounter*> SystemHitCounter;
-
+typedef SystemHitCounter::iterator HitCtrLayerIter;
+typedef std::map<int, SystemHitCounter*> HitCtrMap;
+typedef HitCtrMap::iterator HitCtrMapIter;
 
 class TrackerHitCounter : public marlin::Processor {
 
@@ -59,7 +63,9 @@ public:
 
 protected:
 
-  std::map<int, SystemHitCounter*> hitCounters;
+  HitCtrMap hitCounters;
+
+  StringVec m_trkHitCollNames;
 
 } ;
 
