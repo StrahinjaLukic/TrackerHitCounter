@@ -14,7 +14,9 @@
 
   <global>
     <parameter name="LCIOInputFiles">
-      pairs_1bx_1321.slcio  </parameter>
+      pairs_1bx_1321.slcio
+      pairs_1bx_1322.slcio
+      </parameter>
     <!-- Limit the number of processed records (run+evt): -->
     <parameter name="MaxRecordNumber" value="-1" />
     <parameter name="SkipNEvents" value="0" />

@@ -100,7 +100,7 @@ void TrackerHitCounter::init() {
       catch ( std::exception &e1) {
         streamlog_out(DEBUG) << "Caught exception " << e1.what() << std::endl;
         streamlog_out(MESSAGE) << "  No layering extension in the "
-                "detector element \'" << element.name() << "\'. Total hits will be counted.\n";
+                "detector element \'" << element.name() << "\'.\nTotal hits will be counted.\n";
         (*hitCounters.at(element.id()))[0] = new LayerHitCounter(-1.);
       }
     }
@@ -224,6 +224,7 @@ void TrackerHitCounter::end() {
 
     streamlog_out(MESSAGE) << "\n";
   }
+  streamlog_out(MESSAGE) << "Analysed a total of " << _nEvt << " events in " << _nRun << "runs.\n";
   streamlog_out(MESSAGE) << "******************************************************\n";
 
 
