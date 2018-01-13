@@ -2,6 +2,7 @@
 #define TrackerHitCounter_h 1
 
 #include "marlin/Processor.h"
+#include "DD4hep/DD4hepUnits.h"
 #include <string>
 
 /** TrackerHitCounter: Marlin processor that counts SimTrackerHits in tracker detector
@@ -23,7 +24,7 @@ public:
     virtual ~LayerHitCounter() {}
 
     int getNHits() const { return _nHits; }
-    double getHitsPerCm2() const { return double(_nHits)/_area; }
+    double getHitsPerCm2() const { return double(_nHits)/(_area/dd4hep::cm2); }
     bool isAreaAvailable() const { return (_area > 0.); }
     void addHit() { _nHits++; }
     void addHits(int newHits) { _nHits += newHits; }
@@ -49,17 +50,18 @@ public:
   TrackerHitCounter() ;
 
   /** Read and report the areas of tracker elements.
+   *  Construct the corresponding hit counters.
    */
   virtual void init() ;
 
-  /// do nothing
+  /// Count runs
   virtual void processRunHeader( LCRunHeader* run ) ;
 
-  /// Count hits
-  virtual void processEvent( LCEvent * evt ) ; 
+  /// Count hits in subsystems
+  virtual void processEvent( LCEvent * evt ) ;
 
   /// do nothing
-  virtual void check( LCEvent * evt ) ; 
+  virtual void check( LCEvent * evt ) ;
 
   /// report hits and clean up.
   virtual void end() ;
@@ -67,10 +69,12 @@ public:
 
 protected:
 
-  HitCtrMap hitCounters;
+  HitCtrMap hitCounters{} ;
 
-  StringVec m_trkHitCollNames;
+  StringVec m_trkHitCollNames{} ;
 
+  int _nRun{} ;
+  int _nEvt{} ;
 } ;
 
 
