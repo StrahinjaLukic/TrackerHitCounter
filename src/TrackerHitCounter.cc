@@ -4,16 +4,12 @@
 #include "DD4hep/DD4hepUnits.h"
 #include "DDRec/DetectorData.h"
 #include <IMPL/LCCollectionVec.h>
-#include <IMPL/SimTrackerHitImpl.h>
+#include <EVENT/SimTrackerHit.h>
 #include <UTIL/CellIDDecoder.h>
 #include <vector>
 
 using namespace marlin ;
 
-// Todo: update to v00-05:
-// DD4hep -> dd4hep
-// DD4hep::DDRec -> dd4hep::rec
-// DD4hep::Geometry::LCDD -> dd4hep::Detector
 
 TrackerHitCounter aTrackerHitCounter ;
 
@@ -23,8 +19,8 @@ TrackerHitCounter::TrackerHitCounter() : Processor("TrackerHitCounter"),
 {
 
   // modify processor description
-  _description = "TrackerHitCounter counts hits in tracker detector elements "
-          "and reports number of hits per unit area." ;
+  _description = "TrackerHitCounter counts SimTrackerHits in tracker detector elements "
+          "and reports the number of hits per unit area." ;
 
   StringVec defaultTrkHitCollections;
   defaultTrkHitCollections.push_back(std::string("VXDCollection"));
@@ -64,7 +60,7 @@ void TrackerHitCounter::init() {
       // We assume that layer numbering always starts from 0.
       int ilay = 0;
       for ( auto layer : layering->layers ) {
-          streamlog_out(MESSAGE) << "  Layer " << ilay << ":\n";
+          streamlog_out(MESSAGE) << "  Layer " << ilay+1 << ":\n";
           double ls = layer.zHalfSensitive*2;
           double ws = layer.widthSensitive;
           int nModules = layer.ladderNumber;
@@ -86,7 +82,7 @@ void TrackerHitCounter::init() {
             // We assume that layer numbering always starts from 0.
             int ilay = 0;
             for ( auto layer : layering->layers ) {
-                streamlog_out(MESSAGE) << "  Layer " << ilay << ":\n";
+                streamlog_out(MESSAGE) << "  Layer " << ilay+1 << ":\n";
                 double ls = layer.lengthSensitive;
                 double wsi = layer.widthInnerSensitive;
                 double wso = layer.widthOuterSensitive;
@@ -106,13 +102,13 @@ void TrackerHitCounter::init() {
         streamlog_out(DEBUG) << "Caught exception " << e1.what() << std::endl;
         streamlog_out(MESSAGE) << "  No layering extension in the "
                 "detector element \'" << element.name() << "\'. Total hits will be counted.\n";
-        (*hitCounters.at(element.id()))[1] = new LayerHitCounter();
+        (*hitCounters.at(element.id()))[0] = new LayerHitCounter(-1.);
       }
     }
 
 
     streamlog_out(MESSAGE) << "\n    Added " << hitCounters.at(element.id())->size()
-            << " hit counters for ID=" << element.id() << ".\n\n";
+            << " hit counters for subsystem \'" << element.name() << "\'.\n\n";
   }
 }
 
@@ -124,38 +120,44 @@ void TrackerHitCounter::processEvent( LCEvent * evt) {
 
   for (auto collname : m_trkHitCollNames) {
 
-    streamlog_out(MESSAGE) << "Looking into collection " << collname << "\n";
+    streamlog_out(DEBUG) << "Looking into collection " << collname << "\n";
     LCCollectionVec *col = dynamic_cast<LCCollectionVec*>(evt->getCollection(collname));
     CellIDDecoder<SimTrackerHit> decoder(col);
 
     for (auto lcobj : (*col)) {
 
-      SimTrackerHitImpl* hit = dynamic_cast<SimTrackerHitImpl*>(lcobj);
+      SimTrackerHit* hit = dynamic_cast<SimTrackerHit*>(lcobj);
 
       if(!hit) {
-        streamlog_out(WARNING) << "Collection " << collname << " does not contain "
-            "SimTrackerHits! Skipping collection.\n";
+        streamlog_out(WARNING) << "Collection " << collname << " contains objects "
+            "of type other than SimTrackerHit!\nSkipping collection.\n";
         break;
       }
 
       int nsys = decoder(hit)["system"];
-      streamlog_out(MESSAGE) << "Found hit decoded to system #" << nsys << "\n";
+      streamlog_out(DEBUG) << "Found hit belonging to system #" << nsys << "\n";
       HitCtrMapIter hcmit = hitCounters.find(nsys);
 
       if (hcmit == hitCounters.end()) {
-        streamlog_out(WARNING) << "Hit belongs to system that is not analysed.\n";
+        streamlog_out(WARNING) << "Hit belongs to a system that is not analysed.\n";
       }
       else {
-        int nLayer = decoder(hit)["layer"];
-        HitCtrLayerIter hclit = hcmit->second->find(nLayer);
-        if (hclit == hcmit->second->end()) {
-          streamlog_out(ERROR) << "Hit in system ID=" << hcmit->first
-               << " belongs to layer number " << nLayer << ". Out of range!\n"
-                  "  This should only happen if the xml detector description\n"
-                  "  is different than the one used in the simulation.\n";
+        SystemHitCounter *shc = hcmit->second;
+        if (shc->size() == 1) {
+          shc->at(0)->addHit();
         }
         else {
-          hclit->second->addHit();
+          int nLayer = decoder(hit)["layer"];
+          HitCtrLayerIter hclit = shc->find(nLayer);
+          if (hclit == shc->end()) {
+            streamlog_out(ERROR) << "Hit in system ID=" << hcmit->first
+                 << " belongs to layer number " << nLayer << ". Out of range!\n"
+                    "  This should only happen if the xml detector description\n"
+                    "  is different than the one used in the simulation.\n";
+          }
+          else {
+            hclit->second->addHit();
+          }
         }
       }
 
@@ -183,12 +185,30 @@ void TrackerHitCounter::end() {
         "Subsystem : " << element.name() << "\n";
     auto hitctr = hitCounters.at(element.id());
 
-    for (auto layerpair : *hitctr ) {
 
-      int nhits = layerpair.second->getNHits();
-      double hitspercm2 = layerpair.second->getHitsPerCm2();
-      streamlog_out(MESSAGE) << "  Layer " << layerpair.first << ": " << nhits << " hits. ("
-          << hitspercm2 << " hits/cm^2).\n";
+    if (hitctr->size() == 1) {
+
+      auto layerctr = hitctr->at(0);
+      streamlog_out(MESSAGE) << "  Total: " << layerctr->getNHits() << " hits";
+
+      if (layerctr->isAreaAvailable()) {
+        streamlog_out(MESSAGE) << "(" << layerctr->getHitsPerCm2() << " hits/cm^2).\n";
+      }
+      streamlog_out(MESSAGE) << ".\n";
+    }
+    else {
+
+      for (auto layerpair : *hitctr ) {
+
+        auto layerctr = layerpair.second;
+        streamlog_out(MESSAGE) << "  Layer " << layerpair.first+1 << ": "
+            << layerctr->getNHits() << " hits";
+
+        if (layerctr->isAreaAvailable()) {
+          streamlog_out(MESSAGE) << "(" << layerctr->getHitsPerCm2() << " hits/cm^2)";
+        }
+        streamlog_out(MESSAGE) << ".\n";
+      }
     }
 
     streamlog_out(MESSAGE) << "\n";

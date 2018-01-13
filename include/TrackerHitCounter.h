@@ -1,11 +1,13 @@
-#ifndef AreaReader_h
-#define AreaReader_h 1
+#ifndef TrackerHitCounter_h
+#define TrackerHitCounter_h 1
 
 #include "marlin/Processor.h"
 #include <string>
 
-/** AreaReader: Reports basic geometrical information on tracker detector
- *              elements.
+/** TrackerHitCounter: Marlin processor that counts SimTrackerHits in tracker detector
+ *     elements and reports the number of hits per unit area.
+ *
+ *  S. Lukić, Jan 2018
  */
 
 class LayerHitCounter {
@@ -22,8 +24,10 @@ public:
 
     int getNHits() const { return _nHits; }
     double getHitsPerCm2() const { return double(_nHits)/_area; }
+    bool isAreaAvailable() const { return (_area > 0.); }
     void addHit() { _nHits++; }
     void addHits(int newHits) { _nHits += newHits; }
+
 
 private:
     const double _area;
@@ -69,7 +73,8 @@ protected:
 
 } ;
 
-#endif
+
+#endif // TrackerHitCounter_h
 
 
 
