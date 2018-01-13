@@ -112,7 +112,10 @@ void TrackerHitCounter::init() {
 }
 
 
-void TrackerHitCounter::processRunHeader( LCRunHeader*) { _nRun++; }
+void TrackerHitCounter::processRunHeader( LCRunHeader*) {
+  _nRun++;
+  streamlog_out(MESSAGE) << "Processing run " << _nRun << "\n";
+}
 
 
 void TrackerHitCounter::processEvent( LCEvent * evt) {
