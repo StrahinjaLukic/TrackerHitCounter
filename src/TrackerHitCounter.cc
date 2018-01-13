@@ -42,7 +42,7 @@ TrackerHitCounter::TrackerHitCounter() : Processor("TrackerHitCounter"),
 void TrackerHitCounter::init() { 
 
   // usually a good idea to
-  // printParameters() ;
+  printParameters() ;
 
   // v01-19-05 namespace
   dd4hep::Detector& theDetector = dd4hep::Detector::getInstance();
@@ -61,7 +61,8 @@ void TrackerHitCounter::init() {
       streamlog_out(DEBUG) << "Trying ZPlanarData.\n";
       dd4hep::rec::ZPlanarData* layering = element.extension<dd4hep::rec::ZPlanarData>() ;
 
-      int ilay = 1;
+      // We assume that layer numbering always starts from 0.
+      int ilay = 0;
       for ( auto layer : layering->layers ) {
           streamlog_out(MESSAGE) << "  Layer " << ilay << ":\n";
           double ls = layer.zHalfSensitive*2;
@@ -82,7 +83,8 @@ void TrackerHitCounter::init() {
       try {
             streamlog_out(DEBUG) << "Trying ZDiskPetalsData.\n";
             dd4hep::rec::ZDiskPetalsData *layering = element.extension<dd4hep::rec::ZDiskPetalsData>() ;
-            int ilay = 1;
+            // We assume that layer numbering always starts from 0.
+            int ilay = 0;
             for ( auto layer : layering->layers ) {
                 streamlog_out(MESSAGE) << "  Layer " << ilay << ":\n";
                 double ls = layer.lengthSensitive;
@@ -122,6 +124,7 @@ void TrackerHitCounter::processEvent( LCEvent * evt) {
 
   for (auto collname : m_trkHitCollNames) {
 
+    streamlog_out(MESSAGE) << "Looking into collection " << collname << "\n";
     LCCollectionVec *col = dynamic_cast<LCCollectionVec*>(evt->getCollection(collname));
     CellIDDecoder<SimTrackerHit> decoder(col);
 
@@ -135,18 +138,21 @@ void TrackerHitCounter::processEvent( LCEvent * evt) {
         break;
       }
 
-      HitCtrMapIter hcmit = hitCounters.find(decoder(hit)["system"]);
+      int nsys = decoder(hit)["system"];
+      streamlog_out(MESSAGE) << "Found hit decoded to system #" << nsys << "\n";
+      HitCtrMapIter hcmit = hitCounters.find(nsys);
 
       if (hcmit == hitCounters.end()) {
         streamlog_out(WARNING) << "Hit belongs to system that is not analysed.\n";
       }
       else {
-        HitCtrLayerIter hclit = hcmit->second->find(decoder(hit)["layer"]);
+        int nLayer = decoder(hit)["layer"];
+        HitCtrLayerIter hclit = hcmit->second->find(nLayer);
         if (hclit == hcmit->second->end()) {
           streamlog_out(ERROR) << "Hit in system ID=" << hcmit->first
-               << " belongs to layer number out of range!\n"
-                  "This should only happen if the xml detector description is different "
-                  "than the one used in the simulation.\n";
+               << " belongs to layer number " << nLayer << ". Out of range!\n"
+                  "  This should only happen if the xml detector description\n"
+                  "  is different than the one used in the simulation.\n";
         }
         else {
           hclit->second->addHit();
