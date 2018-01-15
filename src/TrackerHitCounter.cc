@@ -14,7 +14,7 @@ TrackerHitCounter aTrackerHitCounter ;
 
 
 TrackerHitCounter::TrackerHitCounter() : Processor("TrackerHitCounter"),
-    hitCounters(), m_trkHitCollNames()
+    _hitCounters(), m_trkHitCollNames()
 {
 
   // modify processor description
@@ -50,7 +50,7 @@ void TrackerHitCounter::init() {
           streamlog_out(MESSAGE) << "Detector element \'" << element.name() << "\' of type \'"
         << element.type() << "\':\n";
 
-    hitCounters[element.id()] = new SystemHitCounter;
+    _hitCounters[element.id()] = new SystemHitCounter;
 
     try {
       streamlog_out(DEBUG) << "Trying ZPlanarData.\n";
@@ -64,7 +64,7 @@ void TrackerHitCounter::init() {
           double ws = layer.widthSensitive;
           int nModules = layer.ladderNumber;
           double area = ls*ws*nModules;
-          (*hitCounters.at(element.id()))[ilay] = new LayerHitCounter(area);
+          (*_hitCounters.at(element.id()))[ilay] = new LayerHitCounter(area);
           streamlog_out(MESSAGE) << "    Length of sensitive area: " << ls/dd4hep::mm << " mm\n";
           streamlog_out(MESSAGE) << "    Width of sensitive area: " << ws/dd4hep::mm << " mm\n";
           streamlog_out(MESSAGE) << "    Number of ladders: " << nModules << "\n";
@@ -87,7 +87,7 @@ void TrackerHitCounter::init() {
                 double wso = layer.widthOuterSensitive;
                 int nModules = layer.petalNumber;
                 double area = ls*(wsi+wso)*nModules/2;
-                (*hitCounters.at(element.id()))[ilay] = new LayerHitCounter(area);
+                (*_hitCounters.at(element.id()))[ilay] = new LayerHitCounter(area);
                 streamlog_out(MESSAGE) << "    Length of sensitive area: " << ls/dd4hep::mm << " mm\n";
                 streamlog_out(MESSAGE) << "    Inner width of sensitive area: " << wsi/dd4hep::mm << " mm\n";
                 streamlog_out(MESSAGE) << "    Outer width of sensitive area: " << wso/dd4hep::mm << " mm\n";
@@ -101,12 +101,12 @@ void TrackerHitCounter::init() {
         streamlog_out(DEBUG) << "Caught exception " << e1.what() << std::endl;
         streamlog_out(MESSAGE) << "  No layering extension in the "
                 "detector element \'" << element.name() << "\'.\nTotal hits will be counted.\n";
-        (*hitCounters.at(element.id()))[0] = new LayerHitCounter(-1.);
+        (*_hitCounters.at(element.id()))[0] = new LayerHitCounter(-1.);
       }
     }
 
 
-    streamlog_out(MESSAGE) << "\n    Added " << hitCounters.at(element.id())->size()
+    streamlog_out(MESSAGE) << "\n    Added " << _hitCounters.at(element.id())->size()
             << " hit counters for subsystem \'" << element.name() << "\'.\n\n";
   }
 }
@@ -116,12 +116,8 @@ void TrackerHitCounter::init() {
 void TrackerHitCounter::processRunHeader( LCRunHeader*) {
   _nRun++;
   streamlog_out(MESSAGE) << "Processing run " << _nRun << "\n";
-
-  for (auto sysCtr : hitCounters) {
-      for (auto layerCtr : *sysCtr.second) {
-          layerCtr.second->MarkRun();
-      }
-  }
+  markRun();
+  streamlog_out(MESSAGE) << std::endl;
 }
 
 
@@ -147,9 +143,9 @@ void TrackerHitCounter::processEvent( LCEvent * evt) {
 
       int nsys = decoder(hit)["system"];
       streamlog_out(DEBUG) << "Found hit belonging to system #" << nsys << "\n";
-      HitCtrMapIter hcmit = hitCounters.find(nsys);
+      HitCtrMapIter hcmit = _hitCounters.find(nsys);
 
-      if (hcmit == hitCounters.end()) {
+      if (hcmit == _hitCounters.end()) {
         streamlog_out(WARNING) << "Hit belongs to a system that is not analysed.\n";
       }
       else {
@@ -176,6 +172,8 @@ void TrackerHitCounter::processEvent( LCEvent * evt) {
 
   } // Loop over collections
 
+  markEvent();
+
 }
 
 
@@ -194,46 +192,29 @@ void TrackerHitCounter::end() {
 
     streamlog_out(MESSAGE) << "-----------------------------------------\n"
         "Subsystem : " << element.name() << "\n";
-    auto hitctr = hitCounters.at(element.id());
+    auto hitctr = _hitCounters.at(element.id());
 
 
     if (hitctr->size() == 1) {
-
-      auto layerctr = hitctr->at(0);
-      streamlog_out(MESSAGE) << "  Total: " << layerctr->getNHits() << " hits.\n";
-      streamlog_out(MESSAGE) << "    (" << layerctr->getHitsPerRun() << " +- "
-              << layerctr->getStDevHitsPerRun() << ") hits/run.\n";
-
-      if (layerctr->isAreaAvailable()) {
-        streamlog_out(MESSAGE) << "    " << layerctr->getHitsPerCm2() << " hits/cm^2.\n";
-        streamlog_out(MESSAGE) << "    " << layerctr->getHitsPerCm2()/_nEvt << " hits/cm^2/event.\n";
-        streamlog_out(MESSAGE) << "    (" << layerctr->getHitsPerCm2PerRun() << " +- "
-                << layerctr->getStDevHitsPerCm2PerRun() << ") hits/cm^2/run.\n";
-      }
-      else {
-        streamlog_out(MESSAGE) << "    " << layerctr->getNHits()/_nEvt << " hits/event.\n";
-      }
+      streamlog_out(MESSAGE) << "  Reporting total hits in detector element:\n";
     }
-    else {
 
-      for (auto layerpair : *hitctr ) {
+    for (auto layerpair : *hitctr ) {
 
         auto layerctr = layerpair.second;
         streamlog_out(MESSAGE) << "  Layer " << layerpair.first+1 << ": "
             << layerctr->getNHits() << " hits.\n";
         streamlog_out(MESSAGE) << "    (" << layerctr->getHitsPerRun() << " +- "
                   << layerctr->getStDevHitsPerRun() << ") hits/run.\n";
+        streamlog_out(MESSAGE) << "    (" << layerctr->getHitsPerEvent() << " +- "
+                  << layerctr->getStDevHitsPerEvent() << ") hits/event.\n";
 
         if (layerctr->isAreaAvailable()) {
-          streamlog_out(MESSAGE) << "    " << layerctr->getHitsPerCm2() << " hits/cm^2.\n";
-          streamlog_out(MESSAGE) << "    " << layerctr->getHitsPerCm2()/_nEvt << " hits/cm^2/event.\n";
           streamlog_out(MESSAGE) << "    (" << layerctr->getHitsPerCm2PerRun() << " +- "
                   << layerctr->getStDevHitsPerCm2PerRun() << ") hits/cm^2/run.\n";
+          streamlog_out(MESSAGE) << "    (" << layerctr->getHitsPerCm2PerEvent() << " +- "
+                  << layerctr->getStDevHitsPerCm2PerEvent() << ") hits/cm^2/event.\n";
         }
-        else {
-          streamlog_out(MESSAGE) << "    " << layerctr->getNHits()/_nEvt << " hits/event.\n";
-        }
-      }
     }
 
     streamlog_out(MESSAGE) << "\n";
@@ -243,13 +224,30 @@ void TrackerHitCounter::end() {
 
 
   // Clean up
-  for (auto systempair : hitCounters) {
+  for (auto systempair : _hitCounters) {
         for (auto layerpair : *(systempair.second) ) {
             delete layerpair.second;
         }
         delete systempair.second;
     }
-    hitCounters.clear();
+    _hitCounters.clear();
 
+}
+
+
+void TrackerHitCounter::markRun() {
+    for (auto sysCtr : _hitCounters) {
+        for (auto layerCtr : *sysCtr.second) {
+            layerCtr.second->markRun();
+        }
+    }
+}
+
+void TrackerHitCounter::markEvent() {
+    for (auto sysCtr : _hitCounters) {
+        for (auto layerCtr : *sysCtr.second) {
+            layerCtr.second->markEvent();
+        }
+    }
 }
 
