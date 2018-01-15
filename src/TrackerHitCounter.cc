@@ -112,9 +112,16 @@ void TrackerHitCounter::init() {
 }
 
 
+// Performed at the end of each run (file)
 void TrackerHitCounter::processRunHeader( LCRunHeader*) {
   _nRun++;
   streamlog_out(MESSAGE) << "Processing run " << _nRun << "\n";
+
+  for (auto sysCtr : hitCounters) {
+      for (auto layerCtr : *sysCtr.second) {
+          layerCtr.second->MarkRun();
+      }
+  }
 }
 
 
@@ -194,15 +201,17 @@ void TrackerHitCounter::end() {
 
       auto layerctr = hitctr->at(0);
       streamlog_out(MESSAGE) << "  Total: " << layerctr->getNHits() << " hits.\n";
+      streamlog_out(MESSAGE) << "    (" << layerctr->getHitsPerRun() << " +- "
+              << layerctr->getStDevHitsPerRun() << ") hits/run.\n";
 
       if (layerctr->isAreaAvailable()) {
         streamlog_out(MESSAGE) << "    " << layerctr->getHitsPerCm2() << " hits/cm^2.\n";
         streamlog_out(MESSAGE) << "    " << layerctr->getHitsPerCm2()/_nEvt << " hits/cm^2/event.\n";
-        streamlog_out(MESSAGE) << "    " << layerctr->getHitsPerCm2()/_nRun << " hits/cm^2/run.\n";
+        streamlog_out(MESSAGE) << "    (" << layerctr->getHitsPerCm2PerRun() << " +- "
+                << layerctr->getStDevHitsPerCm2PerRun() << ") hits/cm^2/run.\n";
       }
       else {
         streamlog_out(MESSAGE) << "    " << layerctr->getNHits()/_nEvt << " hits/event.\n";
-        streamlog_out(MESSAGE) << "    " << layerctr->getNHits()/_nRun << " hits/run.\n";
       }
     }
     else {
@@ -212,22 +221,24 @@ void TrackerHitCounter::end() {
         auto layerctr = layerpair.second;
         streamlog_out(MESSAGE) << "  Layer " << layerpair.first+1 << ": "
             << layerctr->getNHits() << " hits.\n";
+        streamlog_out(MESSAGE) << "    (" << layerctr->getHitsPerRun() << " +- "
+                  << layerctr->getStDevHitsPerRun() << ") hits/run.\n";
 
         if (layerctr->isAreaAvailable()) {
           streamlog_out(MESSAGE) << "    " << layerctr->getHitsPerCm2() << " hits/cm^2.\n";
           streamlog_out(MESSAGE) << "    " << layerctr->getHitsPerCm2()/_nEvt << " hits/cm^2/event.\n";
-          streamlog_out(MESSAGE) << "    " << layerctr->getHitsPerCm2()/_nRun << " hits/cm^2/run.\n";
+          streamlog_out(MESSAGE) << "    (" << layerctr->getHitsPerCm2PerRun() << " +- "
+                  << layerctr->getStDevHitsPerCm2PerRun() << ") hits/cm^2/run.\n";
         }
         else {
           streamlog_out(MESSAGE) << "    " << layerctr->getNHits()/_nEvt << " hits/event.\n";
-          streamlog_out(MESSAGE) << "    " << layerctr->getNHits()/_nRun << " hits/run.\n";
         }
       }
     }
 
     streamlog_out(MESSAGE) << "\n";
   }
-  streamlog_out(MESSAGE) << "Analysed a total of " << _nEvt << " events in " << _nRun << "runs.\n";
+  streamlog_out(MESSAGE) << "Analysed a total of " << _nEvt << " events in " << _nRun << " runs.\n";
   streamlog_out(MESSAGE) << "******************************************************\n";
 
 
